@@ -13,7 +13,7 @@ agents = Agents()
 
 # Streamlit Page Configuration
 st.set_page_config(
-    page_title="Talent Scout",
+    page_title="InterviewMate",
     page_icon="👨‍💼",
     layout="wide",
     initial_sidebar_state="expanded"
