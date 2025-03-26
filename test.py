@@ -356,8 +356,12 @@ def display_technical_assessment():
     # Display current question
     st.markdown(f"### {current_question}")
     
-    # Answer input
-    answer = st.text_area("Your Answer:", height=150)
+    # Use a unique key for the text area to force clearing
+    answer = st.text_area(
+        "Your Answer:", 
+        height=150, 
+        key=f"answer_area_{st.session_state.current_question_index}"
+    )
     
     if st.button("Next Question" if st.session_state.current_question_index < 9 else "Submit Assessment"):
         if answer.strip():
@@ -378,14 +382,10 @@ def display_technical_assessment():
         else:
             st.warning("Please provide an answer before continuing.")
 
+
 def evaluate_responses():
     """
     Evaluates candidate interview responses and generates a detailed assessment.
-    Requires streamlit session state to contain:
-        - answers: List of candidate responses
-        - resume_analysis: Dict containing resume analysis data
-    Returns:
-        dict: Evaluation results including scores and feedback
     """
     # Input validation
     if 'answers' not in st.session_state or 'resume_analysis' not in st.session_state:
@@ -399,87 +399,53 @@ def evaluate_responses():
     # Evaluation process
     with st.spinner("Evaluating your responses..."):
         try:
-            # Prepare evaluation data
+            # Prepare evaluation data - ensure clean JSON serialization
             evaluation_data = {
                 "resume_analysis": st.session_state.resume_analysis,
                 "answers": st.session_state.answers
             }
             
-            # Construct evaluation prompt with detailed scoring criteria
-            evaluation_prompt = """
-            Evaluate the candidate's responses based on these specific criteria:
+            # Construct evaluation prompt with robust error handling
+            evaluation_prompt = f"""
+Carefully evaluate the candidate's technical interview responses.
 
-            1. Technical accuracy (0-20 points)
-               - 20: Perfect technical accuracy with detailed explanations
-               - 15: Mostly accurate with minor mistakes
-               - 10: Some technical errors but general understanding shown
-               - 5: Major technical misconceptions
-               - 0: Completely incorrect or irrelevant
+Resume Analysis:
+{json.dumps(evaluation_data['resume_analysis'], indent=2)}
 
-            2. Depth of knowledge (0-20 points)
-               - 20: Comprehensive understanding with advanced concepts
-               - 15: Good depth with some advanced knowledge
-               - 10: Basic understanding only
-               - 5: Superficial knowledge
-               - 0: No real understanding shown
+Candidate Answers:
+{json.dumps(evaluation_data['answers'], indent=2)}
 
-            3. Problem-solving approach (0-20 points)
-               - 20: Clear, structured approach with optimal solutions
-               - 15: Good approach with reasonable solutions
-               - 10: Basic problem-solving with some structure
-               - 5: Unclear or inefficient approach
-               - 0: No clear problem-solving method
+**Evaluation Instructions:**
+1. Assess technical knowledge, problem-solving, and communication skills
+2. Compare answers against resume skills and experience
+3. Provide constructive feedback
+4. Return ONLY a valid JSON response with:
+   - overall_score (0-100)
+   - category_scores (0-20 for each category)
+   - strengths (list of strings)
+   - areas_for_improvement (list of strings)
+   - detailed_feedback (string)
 
-            4. Communication clarity (0-20 points)
-               - 20: Exceptionally clear, concise, well-structured
-               - 15: Clear communication with good structure
-               - 10: Somewhat clear but could be better organized
-               - 5: Unclear or confusing communication
-               - 0: Very poor or incomprehensible
-
-            5. Relevance to experience level (0-20 points)
-               - 20: Exceeds expectations for stated experience
-               - 15: Matches expected level perfectly
-               - 10: Slightly below expected level
-               - 5: Significantly below expected level
-               - 0: Completely mismatched with experience
-
-            Important scoring guidelines:
-            - Vague or generic answers should never score above 10 in any category
-            - Perfect scores (20) require specific examples and detailed explanations
-            - Overall scores above 90 should be extremely rare
-            - Scores above 80 require demonstration of advanced knowledge
-            - Average performance should score around 60-75
-            - Be especially strict about technical accuracy and depth of knowledge
-
-            Resume Analysis: {}
-            Answers: {}
-
-            Provide evaluation in the following JSON structure:
-            {{
-                "overall_score": 0,
-                "category_scores": {{
-                    "technical_accuracy": 0,
-                    "knowledge_depth": 0,
-                    "problem_solving": 0,
-                    "communication": 0,
-                    "experience_relevance": 0
-                }},
-                "strengths": ["string"],
-                "areas_for_improvement": ["string"],
-                "detailed_feedback": "string"
-            }}
-            """.format(
-                json.dumps(evaluation_data['resume_analysis'], indent=2),
-                json.dumps(evaluation_data['answers'], indent=2)
-            )
+Return the JSON WITHOUT any additional text or formatting.
+"""
             
             try:
-                # Generate evaluation
+                # Generate evaluation with error handling
                 response = agents.model.generate_content(evaluation_prompt)
                 
-                # Parse and validate response
-                evaluation_result = json.loads(response.text)
+                # Clean response text - remove any potential code blocks or extra formatting
+                response_text = response.text.strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text.replace("```json", "").replace("```", "").strip()
+                
+                # Parse JSON with additional error handling
+                try:
+                    evaluation_result = json.loads(response_text)
+                except json.JSONDecodeError:
+                    st.error(f"JSON Parsing Error. Raw response: {response_text}")
+                    return None
+                
+                # Validate required keys
                 required_keys = [
                     "overall_score", "category_scores", 
                     "strengths", "areas_for_improvement", 
@@ -487,9 +453,10 @@ def evaluate_responses():
                 ]
                 
                 if not all(key in evaluation_result for key in required_keys):
-                    raise ValueError("Missing required fields in evaluation result")
+                    st.error("Evaluation result missing required fields")
+                    return None
                 
-                # Format and display results
+                # Display results (same as previous implementation)
                 st.markdown("## Evaluation Results")
                 
                 # Display overall score with color coding
@@ -524,18 +491,15 @@ def evaluate_responses():
                 
                 return evaluation_result
                 
-            except json.JSONDecodeError:
-                st.error("Failed to parse evaluation results")
-                return None
-                
             except Exception as e:
-                st.error(f"Error generating evaluation: {str(e)}")
+                st.error(f"Evaluation generation failed: {str(e)}")
                 return None
                 
         except Exception as e:
             st.error(f"Evaluation process failed: {str(e)}")
             return None
-        
+
+
 # Main App Flow
 def main():
     display_header()
