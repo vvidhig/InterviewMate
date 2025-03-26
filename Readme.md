@@ -1,4 +1,6 @@
 # InterviewMate - AI-Powered Hiring Assistant
+## Project Link - 
+
 ## Project Overview
 InterviewMate is a conversational AI-based hiring assistant designed to streamline the recruitment process. Built using Streamlit and Google’s Generative AI, the chatbot guides users through a step-by-step interview process, collecting information about their skills, experience, and preferences. It dynamically generates additional questions and evaluates candidates based on their responses, providing insights for recruiters.
 
