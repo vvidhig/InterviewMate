@@ -20,7 +20,7 @@ class Agents:
 
         try:
             available_models = [m.name for m in gen_ai.list_models()]
-            print("🔍 Available Models:", available_models)
+            # print("🔍 Available Models:", available_models)
 
             # Force selection of the best Gemini model
             preferred_models = [
@@ -33,7 +33,7 @@ class Agents:
             if not self.model_name:
                 raise ValueError("❌ No valid Gemini models found. Check your API key permissions.")
 
-            print(f"✅ Using Google Gemini Model: {self.model_name}")
+            # print(f"✅ Using Google Gemini Model: {self.model_name}")
             self.model = gen_ai.GenerativeModel(self.model_name)
 
         except Exception as e:
