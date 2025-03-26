@@ -188,15 +188,12 @@ def analyze_resume(resume_text):
 
 # Modified Question Generation Based on Resume and Position
 def generate_technical_questions(resume_analysis, position):
-    # Safely extract and format resume information
     def format_list(items):
         if not items:
             return []
-        # Handle both string and dict items
         formatted = []
         for item in items:
             if isinstance(item, dict):
-                # If it's a dict, try to get the most relevant information
                 formatted.append(str(item.get('name', item.get('skill', str(item)))))
             elif isinstance(item, str):
                 formatted.append(item)
@@ -204,76 +201,73 @@ def generate_technical_questions(resume_analysis, position):
                 formatted.append(str(item))
         return formatted
 
-    # Safely extract and format resume data
     skills = format_list(resume_analysis.get('primary_skills', []))
     projects = format_list(resume_analysis.get('key_projects', []))
     experience = str(resume_analysis.get('experience_summary', ''))
     suggested_topics = format_list(resume_analysis.get('suggested_question_topics', []))
-    
-    question_prompt = f"""
-    Based on the following resume details and position, generate 10 technical interview questions:
-    
-    Position: {position}
-    Skills: {', '.join(skills) if skills else 'Not specified'}
-    Projects: {', '.join(projects) if projects else 'Not specified'}
-    Experience: {experience}
-    Suggested Topics: {', '.join(suggested_topics) if suggested_topics else 'Not specified'}
 
-    Requirements:
-    1. Make questions specific to the candidate's background and {position} role
-    2. Include at least 2 questions about their specific projects
-    3. Include at least 3 questions about their primary skills
-    4. Include 2 system design questions relevant to their experience level
-    5. Include 3 problem-solving questions
-    6. Order questions from fundamental to advanced
+    # Ensure there are enough skills to avoid out-of-range errors
+    skill_1 = skills[0] if len(skills) > 0 else "a relevant skill"
+    skill_2 = skills[1] if len(skills) > 1 else "another relevant skill"
+
+    # Prompt with safe skill placeholders
+    question_prompt = f"""
+    You are a technical interviewer. Generate **10 UNIQUE and DIVERSE** interview questions for a candidate.
+
+    **Candidate Resume Details:**
+    - **Position Applied:** {position}
+    - **Skills:** {', '.join(skills) if skills else 'Not specified'}
+    - **Projects:** {', '.join(projects) if projects else 'Not specified'}
+    - **Experience Summary:** {experience}
+    - **Suggested Topics:** {', '.join(suggested_topics) if suggested_topics else 'Not specified'}
+
+    **STRICT RULES FOR QUESTION DIVERSITY:**
+    - **2 questions about past projects** (real-world challenges).
+    - **3 questions about primary technical skills** (deep-dive into hands-on experience).
+    - **2 system design or architecture questions** (scalability and performance).
+    - **3 problem-solving or algorithm-based questions** (require explanations).
+    - **Each question must be unique.**
+    - **Ensure the difficulty level increases from Question 1 to 10.**
     
-    Each question should be detailed and require thoughtful responses.
+    **Examples of Unique Questions (DO NOT COPY, FOLLOW THIS PATTERN):**
+    1. **(Project-Based)** "Can you describe a challenging problem you faced in {projects[0] if projects else 'one of your projects'} and how you solved it?"
+    2. **(Skill-Based)** "How does {skill_1} compare to {skill_2} in terms of performance and scalability?"
+    3. **(System Design)** "How would you design a fault-tolerant system for a {position} role?"
     
-    Return strictly in JSON format:
+    **Output JSON Format (STRICTLY JSON ONLY, NO EXTRA TEXT):**
     {{
         "question1": {{ "question": "...", "type": "project/skill/design/problem", "focus_area": "specific skill or project" }},
-        "question2": {{ "question": "...", "type": "project/skill/design/problem", "focus_area": "specific skill or project" }},
-        etc...
+        ...
+        "question10": {{ "question": "...", "type": "project/skill/design/problem", "focus_area": "specific skill or project" }}
     }}
-    
-    Return ONLY the JSON object with no surrounding text or markdown.
     """
-    
+
     try:
         response = agents.model.generate_content(question_prompt)
         response_text = response.text.strip()
-        
+
         if response_text.startswith("```") and "```" in response_text:
             start_idx = response_text.find("{")
             end_idx = response_text.rfind("}") + 1
-            if start_idx >= 0 and end_idx > start_idx:
-                response_text = response_text[start_idx:end_idx]
-        
-        # Add error checking for the response
+            response_text = response_text[start_idx:end_idx]
+
         questions = json.loads(response_text)
-        
-        # Validate the structure of generated questions
+
+        # Ensure all 10 questions exist, otherwise fill with defaults
         for i in range(1, 11):
             question_key = f"question{i}"
             if question_key not in questions:
                 questions[question_key] = {
-                    "question": f"Please describe your experience with {position} related technologies.",
+                    "question": f"Describe your experience with {position} related technologies.",
                     "type": "general",
                     "focus_area": "general experience"
                 }
-            elif isinstance(questions[question_key], str):
-                # Convert string questions to the proper format
-                questions[question_key] = {
-                    "question": questions[question_key],
-                    "type": "general",
-                    "focus_area": "general experience"
-                }
-        
+
         return questions
-        
+
     except Exception as e:
         st.error(f"Error generating questions: {str(e)}")
-        # Fallback questions if something goes wrong
+
         fallback_questions = {}
         for i in range(1, 11):
             fallback_questions[f"question{i}"] = {
@@ -282,6 +276,7 @@ def generate_technical_questions(resume_analysis, position):
                 "focus_area": "general experience"
             }
         return fallback_questions
+
 
 # UI Components
 def display_header():
